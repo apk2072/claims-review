@@ -1,0 +1,162 @@
+project:
+  name: claims-review
+  description: AI-native medical claims review platform on AWS (Textract +
+    Bedrock/Claude + Aurora), built as a hands-on interview-prep project
+    mirroring a Databricks-native reference architecture
+  created: 2026-07-06T00:00:00Z
+  fire_version: 0.1.74
+workspace:
+  type: greenfield
+  structure: monolith
+  autonomy_bias: balanced
+  run_scope_preference: batch
+  run_scope_history: []
+intents:
+  - id: claims-review-platform
+    title: AI-Native Medical Claims Review Platform (AWS)
+    status: in_progress
+    work_items:
+      - id: project-scaffold
+        status: completed
+        complexity: low
+        mode: autopilot
+        depends_on: []
+        run_id: run-claims-review-001
+        completed_at: 2026-07-06T03:16:28.859Z
+      - id: aws-foundation-infra
+        status: completed
+        complexity: high
+        mode: validate
+        depends_on:
+          - project-scaffold
+        run_id: run-claims-review-002
+        completed_at: 2026-07-07T05:43:42.558Z
+      - id: aurora-schema-migrations
+        status: completed
+        complexity: medium
+        mode: confirm
+        depends_on:
+          - aws-foundation-infra
+        run_id: run-claims-review-003
+        completed_at: 2026-07-08T00:51:50.094Z
+      - id: synthetic-claims-fixtures
+        status: completed
+        complexity: low
+        mode: autopilot
+        depends_on: []
+        run_id: run-claims-review-003
+        completed_at: 2026-07-08T00:51:50.094Z
+      - id: pipeline-orchestration
+        status: completed
+        complexity: medium
+        mode: confirm
+        depends_on:
+          - aws-foundation-infra
+        run_id: run-claims-review-004
+        completed_at: 2026-07-08T01:16:14.888Z
+      - id: bronze-textract-parse
+        status: pending
+        complexity: medium
+        mode: confirm
+        depends_on:
+          - aws-foundation-infra
+          - aurora-schema-migrations
+          - synthetic-claims-fixtures
+          - pipeline-orchestration
+      - id: silver-classify-extract
+        status: pending
+        complexity: medium
+        mode: confirm
+        depends_on:
+          - bronze-textract-parse
+      - id: gold-verdict-routing
+        status: pending
+        complexity: medium
+        mode: confirm
+        depends_on:
+          - silver-classify-extract
+      - id: reviewer-backend-api
+        status: pending
+        complexity: medium
+        mode: confirm
+        depends_on:
+          - aurora-schema-migrations
+          - gold-verdict-routing
+      - id: reviewer-frontend-app
+        status: pending
+        complexity: medium
+        mode: confirm
+        depends_on:
+          - reviewer-backend-api
+      - id: assistant-agent-service
+        status: pending
+        complexity: high
+        mode: validate
+        depends_on:
+          - aurora-schema-migrations
+          - reviewer-backend-api
+      - id: mlflow-tracing-setup
+        status: pending
+        complexity: medium
+        mode: confirm
+        depends_on:
+          - assistant-agent-service
+      - id: eval-curation-scoring
+        status: pending
+        complexity: medium
+        mode: confirm
+        depends_on:
+          - reviewer-backend-api
+          - mlflow-tracing-setup
+      - id: gepa-prompt-optimization
+        status: pending
+        complexity: high
+        mode: validate
+        depends_on:
+          - eval-curation-scoring
+      - id: demo-and-teardown
+        status: pending
+        complexity: low
+        mode: autopilot
+        depends_on:
+          - gold-verdict-routing
+          - reviewer-frontend-app
+          - gepa-prompt-optimization
+runs:
+  active: []
+  completed:
+    - id: run-claims-review-001
+      scope: single
+      work_items:
+        - id: project-scaffold
+          intent: claims-review-platform
+          mode: autopilot
+      started: 2026-07-06T02:48:38.777Z
+      completed: 2026-07-06T03:16:28.859Z
+    - id: run-claims-review-002
+      scope: single
+      work_items:
+        - id: aws-foundation-infra
+          intent: claims-review-platform
+          mode: validate
+      started: 2026-07-06T03:21:16.860Z
+      completed: 2026-07-07T05:43:42.558Z
+    - id: run-claims-review-003
+      scope: batch
+      work_items:
+        - id: synthetic-claims-fixtures
+          intent: claims-review-platform
+          mode: autopilot
+        - id: aurora-schema-migrations
+          intent: claims-review-platform
+          mode: confirm
+      started: 2026-07-07T06:07:05.612Z
+      completed: 2026-07-08T00:51:50.094Z
+    - id: run-claims-review-004
+      scope: single
+      work_items:
+        - id: pipeline-orchestration
+          intent: claims-review-platform
+          mode: confirm
+      started: 2026-07-08T00:58:25.152Z
+      completed: 2026-07-08T01:16:14.888Z

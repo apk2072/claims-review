@@ -1,0 +1,18 @@
+[project]
+name = "claims-review"
+version = "0.1.0"
+description = "AI-native medical claims review platform on AWS (interview-prep learning project)"
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = ["common", "pipeline", "backend", "agent", "eval", "infra"]
+
+[dependency-groups]
+dev = [
+    "moto>=5.2.2",
+    "mypy>=2.1.0",
+    "pillow>=12.3.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.15.20",
+]

@@ -1,0 +1,21 @@
+[project]
+name = "common"
+version = "0.1.0"
+description = "Shared models and config for the claims-review platform"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.18.5",
+    "aurora-data-api>=0.5.0",
+    "pgvector>=0.4.2",
+    "psycopg[binary]>=3.3.4",
+    "pydantic>=2.9",
+    "sqlalchemy>=2.0.51",
+    "sqlalchemy-aurora-data-api>=0.5.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/common"]

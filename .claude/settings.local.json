@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/pallam/.claude/**)",
+      "Bash(claude mcp *)",
+      "mcp__aws-mcp__aws___call_aws"
+    ]
+  }
+}
