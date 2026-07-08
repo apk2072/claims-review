@@ -29,21 +29,24 @@ Verified: `cdk synth`, `cdk deploy` (full create + a targeted redeploy), pgvecto
 Step Functions orchestration skeleton — proves the bronze/silver/gold wiring shape before the real Textract/Bedrock logic lands in later work items:
 
 - **`BronzeParseFunction`** (real, `bronze-textract-parse`): calls Amazon Textract `AnalyzeDocument` (FORMS) on the incoming S3 object, then writes to Aurora over the **RDS Data API using raw parameterized SQL** — not the `common` package's SQLAlchemy models. `common` pulls in `psycopg[binary]` (a compiled dependency), and this Lambda is still deployed via `Code.from_inline` with no Docker-based bundling available on this machine (same constraint as `ConnectivityTestFunction`). The Data API is also how Alembic already reaches this cluster from outside the VPC, so this Lambda stays VPC-unattached too. Retries transient Textract errors via boto3's adaptive retry config; on permanent failure, marks `claims.status = 'failed'` and re-raises so the state machine's existing catch handles the rest.
-- **`SilverClassifyExtractFunction`, `GoldConfidenceRouteFunction`**: still placeholders (stdlib-only, log + pass through) pending their own work items. Source for all three lives at `pipeline/src/pipeline/{bronze,silver,gold}/*_handler.py`.
+- **`SilverClassifyExtractFunction`** (real, `silver-classify-extract`): reconstructs plain text from `bronze_parses.raw_blocks`, then calls Bedrock (`us.anthropic.claude-haiku-4-5-20251001-v1:0`) twice — once to classify (`medical_claim` vs `other`, tool-use forced, Pydantic-validated), once to extract fields+confidences (skipped if not classified as a claim). Computes `compute_composite_score()` (60% extract / 20% parse / 20% completeness — see `pipeline/src/pipeline/silver/confidence_scoring.py`) and writes an `extractions` row. Same raw-SQL-over-Data-API approach as bronze, same failure handling. **Deployed differently from bronze**: the acceptance criteria require Pydantic-validated structured output, and `pydantic-core` is a compiled dependency — but unlike `psycopg[binary]`, `pip install --platform manylinux2014_x86_64 --only-binary=:all:` successfully downloads a prebuilt Linux wheel for it with no Docker or Linux host needed (confirmed working this session). `pipeline_stack.py`'s `_build_dependency_bundled_lambda_code()` helper vendors `pydantic` into `infra/.build/silver-classify-extract/` (gitignored) at synth time and deploys it via `Code.from_asset` instead of `Code.from_inline`. Bedrock's bare model ID rejects on-demand invocation (`ValidationException: ... Retry your request with the ID or ARN of an inference profile`) — the cross-region inference profile ID (`us.anthropic.claude-haiku-4-5-20251001-v1:0`) is what's actually invoked, and `bedrock:InvokeModel` is granted on `*` since the profile can route to any of several underlying regions.
+- **`GoldConfidenceRouteFunction`**: still a placeholder (stdlib-only, log + pass through) pending its own work item. Source for all three lives at `pipeline/src/pipeline/{bronze,silver,gold}/*_handler.py`.
 - **`ClaimsProcessingStateMachine`** (Standard): `Parse` → `ClassifyExtract` → `ConfidenceRoute`, each task with `.add_catch(..., errors=["States.ALL"])` routed to a shared `DocumentProcessingFailed` Fail state, so one document's failure doesn't affect others (each S3 event is its own execution).
 - **`DocumentIngestRule`** (EventBridge): matches `aws.s3` / "Object Created" scoped to `DocumentsBucket` (already EventBridge-enabled from the foundation stack), targets the state machine. CDK auto-grants the rule's role `states:StartExecution`.
 
-Manual test (via AWS MCP server — `get_presigned_url` + `call_aws`, not local CLI):
+Manual test (via AWS MCP server — `get_presigned_url`/local `aws s3 cp` + `call_aws`):
 ```bash
-# 1. Presign + PUT a fixture into DocumentsBucket (any key under claims/)
+# 1. Upload a fixture into DocumentsBucket (any key under claims/)
 # 2. aws stepfunctions list-executions --state-machine-arn <arn from stack>
-# 3. aws stepfunctions get-execution-history --execution-arn <arn from step 2>
-#    expect: ExecutionStarted -> Parse/ClassifyExtract/ConfidenceRoute all TaskSucceeded -> ExecutionSucceeded
+# 3. aws stepfunctions describe-execution --execution-arn <arn from step 2>
+#    expect: status SUCCEEDED, output {"claim_id", "extraction_id", "composite_confidence"}
 # 4. aws rds-data execute-statement --resource-arn <cluster arn> --secret-arn <secret arn> \
-#      --database claims_review --sql "SELECT s3_key, status FROM claims"
-#    and similarly against bronze_parses to confirm the real row + parse_confidence
+#      --database claims_review --sql "SELECT c.s3_key, c.document_type, e.composite_confidence \
+#      FROM claims c JOIN extractions e ON e.claim_id = c.id"
 ```
 Verified 2026-07-08 (pipeline-orchestration): one execution, all 3 states `TaskSucceeded`, payload passed through unchanged at each step, `ExecutionSucceeded`.
+
+Verified 2026-07-08 (silver-classify-extract): all 4 synthetic fixtures run end-to-end (bronze→silver) with correctly differentiated composite confidence — clean 0.96, missing-fields 0.89, wrong-document-type 0.77 (extraction correctly skipped, `document_type='other'`), blurry 0.39 (lowest, correctly destined for human review). Notably the blurry fixture's OCR output was garbled enough that Bedrock classified it as `'other'` too, not `'medical_claim'` — not a bug: silver classifies from bronze's *reconstructed text*, not the raw image, so a sufficiently illegible scan degrades classification the same way it degrades extraction. The composite score still correctly lands well below the (future) auto-verdict threshold either way.
 
 ## Cost estimate (always-on pieces, if left running)
 
@@ -51,7 +54,9 @@ Verified 2026-07-08 (pipeline-orchestration): one execution, all 3 states `TaskS
 |---|---|---|
 | NAT Gateway | ~$32-38/mo + ~$0.045/GB processed | Biggest always-on cost. Only way to avoid it entirely would be 5+ VPC interface endpoints, which cost more at this scale (see design doc) |
 | Aurora Serverless v2 (min 0 ACU) | ~$0 when scaled to zero; ~$0.12/ACU-hour while active | Scale-to-zero means idle time between practice sessions costs nothing but storage; expect a ~15-30s cold-start resuming from zero (confirmed: got a `DatabaseResumingException` on the first Data API call, succeeded on retry) |
-| Step Functions + placeholder Lambdas | Negligible, pay-per-use | ~$0.025/1,000 state transitions; Lambda invocations well within free tier at demo scale; no always-on cost |
+| Step Functions + Lambdas | Negligible, pay-per-use | ~$0.025/1,000 state transitions; Lambda invocations well within free tier at demo scale; no always-on cost |
+| Textract (`AnalyzeDocument` FORMS) | ~$0.05/page | Single-page synthetic fixtures; a handful of test runs costs cents |
+| Bedrock (Claude Haiku 4.5, 2 calls/doc) | Fractions of a cent/doc | Cheapest capable model for a two-call-per-document classify+extract step |
 | S3, Secrets Manager, CloudWatch Logs | Negligible | Well under $1/mo at this scale |
 
 **Bottom line: the NAT Gateway is the only real always-on cost. Run `cdk destroy` between practice sessions to avoid accruing it.**

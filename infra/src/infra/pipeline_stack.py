@@ -1,4 +1,6 @@
 import pathlib
+import shutil
+import subprocess
 
 from aws_cdk import Duration, Stack
 from aws_cdk import aws_events as events
@@ -11,12 +13,66 @@ from aws_cdk import aws_stepfunctions as sfn
 from aws_cdk import aws_stepfunctions_tasks as tasks
 from constructs import Construct
 
-_PIPELINE_SRC = pathlib.Path(__file__).parents[3] / "pipeline" / "src" / "pipeline"
+_REPO_ROOT = pathlib.Path(__file__).parents[3]
+_PIPELINE_SRC = _REPO_ROOT / "pipeline" / "src" / "pipeline"
+_BUILD_ROOT = pathlib.Path(__file__).parent.parent.parent / ".build"
+
 _BRONZE_PARSE_SOURCE = (_PIPELINE_SRC / "bronze" / "parse_handler.py").read_text()
-_SILVER_CLASSIFY_EXTRACT_SOURCE = (
-    _PIPELINE_SRC / "silver" / "classify_extract_handler.py"
-).read_text()
 _GOLD_CONFIDENCE_ROUTE_SOURCE = (_PIPELINE_SRC / "gold" / "confidence_route_handler.py").read_text()
+
+
+def _build_dependency_bundled_lambda_code(
+    package_subdir: str, requirements: list[str]
+) -> lambda_.Code:
+    """Vendor pure-Python-wheel dependencies into a Lambda asset, no Docker required.
+
+    This machine has no Docker for CDK's usual asset-bundling path, but
+    `pip install --platform manylinux2014_x86_64 --only-binary=:all:`
+    downloads prebuilt Linux wheels directly from PyPI (no compilation, so
+    no Docker/Linux host needed) — confirmed working for `pydantic` this
+    session. Only suitable for dependencies that ship such wheels; `common`'s
+    psycopg[binary] does not have a pure story here, which is why the bronze
+    Lambda avoids `common` entirely (see its docstring) rather than using
+    this helper.
+    """
+    build_dir = _BUILD_ROOT / package_subdir
+    if build_dir.exists():
+        shutil.rmtree(build_dir)
+    build_dir.mkdir(parents=True)
+
+    shutil.copytree(
+        _PIPELINE_SRC,
+        build_dir / "pipeline",
+        ignore=shutil.ignore_patterns("__pycache__", "bronze", "gold"),
+    )
+
+    if requirements:
+        subprocess.run(
+            [
+                "uv",
+                "run",
+                "pip",
+                "install",
+                "--platform",
+                "manylinux2014_x86_64",
+                "--implementation",
+                "cp",
+                "--python-version",
+                "3.12",
+                "--abi",
+                "cp312",
+                "--only-binary=:all:",
+                "--target",
+                str(build_dir),
+                *requirements,
+            ],
+            cwd=_REPO_ROOT,
+            check=True,
+        )
+        for cache_dir in build_dir.rglob("__pycache__"):
+            shutil.rmtree(cache_dir)
+
+    return lambda_.Code.from_asset(str(build_dir))
 
 
 class ClaimsReviewPipelineStack(Stack):
@@ -59,13 +115,32 @@ class ClaimsReviewPipelineStack(Stack):
             iam.PolicyStatement(actions=["textract:AnalyzeDocument"], resources=["*"])
         )
 
+        bedrock_model_id = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+
         classify_extract_function = lambda_.Function(
             self,
             "SilverClassifyExtractFunction",
             runtime=lambda_.Runtime.PYTHON_3_12,
-            handler="index.handler",
-            code=lambda_.Code.from_inline(_SILVER_CLASSIFY_EXTRACT_SOURCE),
-            timeout=Duration.seconds(15),
+            handler="pipeline.silver.classify_extract_handler.handler",
+            code=_build_dependency_bundled_lambda_code(
+                "silver-classify-extract", ["pydantic>=2.9"]
+            ),
+            timeout=Duration.seconds(60),
+            environment={
+                "AURORA_CLUSTER_ARN": database.cluster_arn,
+                "AURORA_SECRET_ARN": database.secret.secret_arn,
+                "AURORA_DATABASE_NAME": "claims_review",
+                "BEDROCK_MODEL_ID": bedrock_model_id,
+            },
+        )
+        database.grant_data_api_access(classify_extract_function)
+        # Cross-region inference profiles (required here — the bare model ID
+        # rejects on-demand invocation, see infra/README.md) route to
+        # whichever underlying region has capacity, so a tightly-scoped
+        # resource ARN would need every region the "us." profile can land
+        # in. Wildcarded, same tradeoff as Textract's AnalyzeDocument above.
+        classify_extract_function.add_to_role_policy(
+            iam.PolicyStatement(actions=["bedrock:InvokeModel"], resources=["*"])
         )
 
         confidence_route_function = lambda_.Function(

@@ -66,11 +66,13 @@ intents:
         run_id: run-claims-review-005
         completed_at: 2026-07-08T01:49:41.130Z
       - id: silver-classify-extract
-        status: pending
+        status: completed
         complexity: medium
         mode: confirm
         depends_on:
           - bronze-textract-parse
+        run_id: run-claims-review-006
+        completed_at: 2026-07-08T22:00:35.875Z
       - id: gold-verdict-routing
         status: pending
         complexity: medium
@@ -170,3 +172,11 @@ runs:
           mode: confirm
       started: 2026-07-08T01:28:37.949Z
       completed: 2026-07-08T01:49:41.130Z
+    - id: run-claims-review-006
+      scope: single
+      work_items:
+        - id: silver-classify-extract
+          intent: claims-review-platform
+          mode: confirm
+      started: 2026-07-08T17:55:43.577Z
+      completed: 2026-07-08T22:00:35.875Z

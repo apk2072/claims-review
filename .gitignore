@@ -15,6 +15,7 @@ frontend/dist/
 
 # CDK
 infra/cdk.out/
+infra/.build/
 
 # Env / secrets
 .env

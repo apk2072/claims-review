@@ -6,7 +6,7 @@ Shared SQLAlchemy models (`claims`, `extractions`, `reviews`, `review_metrics`, 
 
 - **`claims`** — one row per ingested document (bronze-layer identity)
 - **`bronze_parses`** — raw Textract parse result per claim (trimmed blocks + per-document parse confidence); written directly over the RDS Data API by the bronze pipeline Lambda, not through this ORM — see `infra/README.md`
-- **`extractions`** — gold-layer extraction result: fields, confidence scores, auto-verdict routing
+- **`extractions`** — gold-layer extraction result: fields, confidence scores, auto-verdict routing. `fields`/`field_confidences`/`*_confidence` columns are written by the silver pipeline Lambda (raw Data API SQL, same as bronze); `is_automated` defaults to `false` and is set by `gold-verdict-routing`
 - **`reviews`** — one row per reviewer verdict action; insert-only, this table IS the audit trail
 - **`review_metrics`** — per-reviewer, per-day aggregate, incremented alongside each `reviews` insert
 - **`agent_memory`** — long-term, per-user agent memory with pgvector similarity search (HNSW index, cosine distance)
