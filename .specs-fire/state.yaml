@@ -55,7 +55,7 @@ intents:
         run_id: run-claims-review-004
         completed_at: 2026-07-08T01:16:14.888Z
       - id: bronze-textract-parse
-        status: pending
+        status: completed
         complexity: medium
         mode: confirm
         depends_on:
@@ -63,6 +63,8 @@ intents:
           - aurora-schema-migrations
           - synthetic-claims-fixtures
           - pipeline-orchestration
+        run_id: run-claims-review-005
+        completed_at: 2026-07-08T01:49:41.130Z
       - id: silver-classify-extract
         status: pending
         complexity: medium
@@ -160,3 +162,11 @@ runs:
           mode: confirm
       started: 2026-07-08T00:58:25.152Z
       completed: 2026-07-08T01:16:14.888Z
+    - id: run-claims-review-005
+      scope: single
+      work_items:
+        - id: bronze-textract-parse
+          intent: claims-review-platform
+          mode: confirm
+      started: 2026-07-08T01:28:37.949Z
+      completed: 2026-07-08T01:49:41.130Z

@@ -1,0 +1,136 @@
+{
+  "DocumentMetadata": {
+    "Pages": 1
+  },
+  "Blocks": [
+    {
+      "BlockType": "PAGE",
+      "Id": "99786ac8-182d-4b8a-a1bf-742586f0b198",
+      "Geometry": {
+        "BoundingBox": {
+          "Width": 0.9992334842681885,
+          "Height": 0.9926913380622864,
+          "Left": 0,
+          "Top": 0.002375937532633543
+        }
+      }
+    },
+    {
+      "BlockType": "LINE",
+      "Confidence": 17.10120391845703,
+      "Text": "|||||||||",
+      "Id": "ae9ce6b9-b4df-4699-9195-2e6ce096e1ed",
+      "Geometry": {
+        "BoundingBox": {
+          "Width": 0.09159083664417267,
+          "Height": 0.6997121572494507,
+          "Left": 0.037983912974596024,
+          "Top": 0.082996666431427
+        }
+      }
+    },
+    {
+      "BlockType": "LINE",
+      "Confidence": 51.4171142578125,
+      "Text": "I",
+      "Id": "bb8cf40a-be75-4055-8235-5921ff3a31f1",
+      "Geometry": {
+        "BoundingBox": {
+          "Width": 0.06757082045078278,
+          "Height": 0.029398158192634583,
+          "Left": 0.32915350794792175,
+          "Top": 0.3294790983200073
+        }
+      }
+    },
+    {
+      "BlockType": "LINE",
+      "Confidence": 51.036251068115234,
+      "Text": "|",
+      "Id": "fa6917f5-d2b4-4b17-8bcd-288c4df35d17",
+      "Geometry": {
+        "BoundingBox": {
+          "Width": 0.15019585192203522,
+          "Height": 0.028701992705464363,
+          "Left": 0.3313103914260864,
+          "Top": 0.41434940695762634
+        }
+      }
+    },
+    {
+      "BlockType": "LINE",
+      "Confidence": 76.2927474975586,
+      "Text": "I",
+      "Id": "5a4a82e2-27d8-4261-9de4-6ecdc0f9698f",
+      "Geometry": {
+        "BoundingBox": {
+          "Width": 0.05015627667307854,
+          "Height": 0.029441261664032936,
+          "Left": 0.32980862259864807,
+          "Top": 0.7469924688339233
+        }
+      }
+    },
+    {
+      "BlockType": "WORD",
+      "Confidence": 17.10120391845703,
+      "Text": "|||||||||",
+      "TextType": "PRINTED",
+      "Id": "8287314b-0128-4304-87aa-5ada7635fb5f",
+      "Geometry": {
+        "BoundingBox": {
+          "Width": 0.09159083664417267,
+          "Height": 0.6997121572494507,
+          "Left": 0.037983912974596024,
+          "Top": 0.082996666431427
+        }
+      }
+    },
+    {
+      "BlockType": "WORD",
+      "Confidence": 51.4171142578125,
+      "Text": "I",
+      "TextType": "PRINTED",
+      "Id": "3bfb9c02-ebf6-4170-a73b-5fc29195de3c",
+      "Geometry": {
+        "BoundingBox": {
+          "Width": 0.06757082045078278,
+          "Height": 0.029398158192634583,
+          "Left": 0.32915350794792175,
+          "Top": 0.3294790983200073
+        }
+      }
+    },
+    {
+      "BlockType": "WORD",
+      "Confidence": 51.036251068115234,
+      "Text": "|",
+      "TextType": "PRINTED",
+      "Id": "629ccf21-0332-4933-884e-fbf33e495154",
+      "Geometry": {
+        "BoundingBox": {
+          "Width": 0.15019585192203522,
+          "Height": 0.028701992705464363,
+          "Left": 0.3313103914260864,
+          "Top": 0.41434940695762634
+        }
+      }
+    },
+    {
+      "BlockType": "WORD",
+      "Confidence": 76.2927474975586,
+      "Text": "I",
+      "TextType": "PRINTED",
+      "Id": "9c136a85-3f05-4da5-9134-979205d1153a",
+      "Geometry": {
+        "BoundingBox": {
+          "Width": 0.05015627667307854,
+          "Height": 0.029441261664032936,
+          "Left": 0.32980862259864807,
+          "Top": 0.7469924688339233
+        }
+      }
+    }
+  ],
+  "AnalyzeDocumentModelVersion": "1.0"
+}

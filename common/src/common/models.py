@@ -62,6 +62,30 @@ class Claim(Base):
     )
 
 
+class BronzeParse(Base):
+    """Raw Textract parse result for one claim (bronze-layer output).
+
+    Written by the bronze-textract-parse pipeline Lambda over the RDS Data
+    API (raw SQL, not this ORM directly — see infra/README.md for why). Kept
+    as its own table rather than a column on `claims` or `extractions`: the
+    raw per-element blocks are a distinct, potentially large artifact from
+    both the lean claim identity row and the later structured
+    field/verdict result.
+    """
+
+    __tablename__ = "bronze_parses"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    claim_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("claims.id"), nullable=False, unique=True
+    )
+    raw_blocks: Mapped[list] = mapped_column(JSONB, nullable=False)
+    parse_confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Extraction(Base):
     """Gold-layer extraction result: fields, confidence scores, auto-verdict routing."""
 

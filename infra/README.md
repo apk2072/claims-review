@@ -28,7 +28,8 @@ Verified: `cdk synth`, `cdk deploy` (full create + a targeted redeploy), pgvecto
 
 Step Functions orchestration skeleton — proves the bronze/silver/gold wiring shape before the real Textract/Bedrock logic lands in later work items:
 
-- **3 placeholder Lambdas** (`BronzeParseFunction`, `SilverClassifyExtractFunction`, `GoldConfidenceRouteFunction`): stdlib-only, log the input event and pass it through unchanged. Source lives at `pipeline/src/pipeline/{bronze,silver,gold}/*_handler.py` and is loaded via `Code.from_inline` (same no-Docker-available approach as `ConnectivityTestFunction`). None are VPC-attached — they don't touch Aurora yet.
+- **`BronzeParseFunction`** (real, `bronze-textract-parse`): calls Amazon Textract `AnalyzeDocument` (FORMS) on the incoming S3 object, then writes to Aurora over the **RDS Data API using raw parameterized SQL** — not the `common` package's SQLAlchemy models. `common` pulls in `psycopg[binary]` (a compiled dependency), and this Lambda is still deployed via `Code.from_inline` with no Docker-based bundling available on this machine (same constraint as `ConnectivityTestFunction`). The Data API is also how Alembic already reaches this cluster from outside the VPC, so this Lambda stays VPC-unattached too. Retries transient Textract errors via boto3's adaptive retry config; on permanent failure, marks `claims.status = 'failed'` and re-raises so the state machine's existing catch handles the rest.
+- **`SilverClassifyExtractFunction`, `GoldConfidenceRouteFunction`**: still placeholders (stdlib-only, log + pass through) pending their own work items. Source for all three lives at `pipeline/src/pipeline/{bronze,silver,gold}/*_handler.py`.
 - **`ClaimsProcessingStateMachine`** (Standard): `Parse` → `ClassifyExtract` → `ConfidenceRoute`, each task with `.add_catch(..., errors=["States.ALL"])` routed to a shared `DocumentProcessingFailed` Fail state, so one document's failure doesn't affect others (each S3 event is its own execution).
 - **`DocumentIngestRule`** (EventBridge): matches `aws.s3` / "Object Created" scoped to `DocumentsBucket` (already EventBridge-enabled from the foundation stack), targets the state machine. CDK auto-grants the rule's role `states:StartExecution`.
 
@@ -38,8 +39,11 @@ Manual test (via AWS MCP server — `get_presigned_url` + `call_aws`, not local 
 # 2. aws stepfunctions list-executions --state-machine-arn <arn from stack>
 # 3. aws stepfunctions get-execution-history --execution-arn <arn from step 2>
 #    expect: ExecutionStarted -> Parse/ClassifyExtract/ConfidenceRoute all TaskSucceeded -> ExecutionSucceeded
+# 4. aws rds-data execute-statement --resource-arn <cluster arn> --secret-arn <secret arn> \
+#      --database claims_review --sql "SELECT s3_key, status FROM claims"
+#    and similarly against bronze_parses to confirm the real row + parse_confidence
 ```
-Verified 2026-07-08: one execution, all 3 states `TaskSucceeded`, payload passed through unchanged at each step, `ExecutionSucceeded`.
+Verified 2026-07-08 (pipeline-orchestration): one execution, all 3 states `TaskSucceeded`, payload passed through unchanged at each step, `ExecutionSucceeded`.
 
 ## Cost estimate (always-on pieces, if left running)
 

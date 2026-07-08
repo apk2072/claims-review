@@ -3,7 +3,9 @@ import pathlib
 from aws_cdk import Duration, Stack
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
+from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_rds as rds
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_stepfunctions as sfn
 from aws_cdk import aws_stepfunctions_tasks as tasks
@@ -27,7 +29,12 @@ class ClaimsReviewPipelineStack(Stack):
     """
 
     def __init__(
-        self, scope: Construct, construct_id: str, documents_bucket: s3.IBucket, **kwargs
+        self,
+        scope: Construct,
+        construct_id: str,
+        documents_bucket: s3.IBucket,
+        database: rds.DatabaseCluster,
+        **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
@@ -37,7 +44,19 @@ class ClaimsReviewPipelineStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler="index.handler",
             code=lambda_.Code.from_inline(_BRONZE_PARSE_SOURCE),
-            timeout=Duration.seconds(15),
+            timeout=Duration.seconds(60),
+            environment={
+                "AURORA_CLUSTER_ARN": database.cluster_arn,
+                "AURORA_SECRET_ARN": database.secret.secret_arn,
+                "AURORA_DATABASE_NAME": "claims_review",
+            },
+        )
+        database.grant_data_api_access(parse_function)
+        documents_bucket.grant_read(parse_function)
+        # Textract's synchronous AnalyzeDocument doesn't support resource-level
+        # permissions, so the action must be granted on "*".
+        parse_function.add_to_role_policy(
+            iam.PolicyStatement(actions=["textract:AnalyzeDocument"], resources=["*"])
         )
 
         classify_extract_function = lambda_.Function(

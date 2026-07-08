@@ -17,6 +17,7 @@ ClaimsReviewPipelineStack(
     app,
     "ClaimsReviewPipeline",
     documents_bucket=foundation_stack.documents_bucket,
+    database=foundation_stack.database,
     env=env,
 )
 
