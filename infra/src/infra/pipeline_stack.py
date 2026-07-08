@@ -18,22 +18,28 @@ _PIPELINE_SRC = _REPO_ROOT / "pipeline" / "src" / "pipeline"
 _BUILD_ROOT = pathlib.Path(__file__).parent.parent.parent / ".build"
 
 _BRONZE_PARSE_SOURCE = (_PIPELINE_SRC / "bronze" / "parse_handler.py").read_text()
-_GOLD_CONFIDENCE_ROUTE_SOURCE = (_PIPELINE_SRC / "gold" / "confidence_route_handler.py").read_text()
 
 
 def _build_dependency_bundled_lambda_code(
     package_subdir: str, requirements: list[str]
 ) -> lambda_.Code:
-    """Vendor pure-Python-wheel dependencies into a Lambda asset, no Docker required.
+    """Vendor the pipeline package (+ optional pure-wheel deps) into a Lambda asset.
 
-    This machine has no Docker for CDK's usual asset-bundling path, but
-    `pip install --platform manylinux2014_x86_64 --only-binary=:all:`
-    downloads prebuilt Linux wheels directly from PyPI (no compilation, so
-    no Docker/Linux host needed) — confirmed working for `pydantic` this
-    session. Only suitable for dependencies that ship such wheels; `common`'s
-    psycopg[binary] does not have a pure story here, which is why the bronze
-    Lambda avoids `common` entirely (see its docstring) rather than using
-    this helper.
+    Used by any pipeline Lambda whose handler imports sibling modules (e.g.
+    gold's handler importing `pipeline.gold.verdict_routing`) — `Code.from_inline`
+    only ships that one file's text, so such imports fail at runtime with
+    `No module named 'pipeline'`. Copies the whole `pipeline` package rather
+    than filtering to just the calling Lambda's subpackage — simpler, and the
+    extra unused source (a few KB) is harmless.
+
+    `requirements` additionally pip-installs pure-Python-wheel third-party
+    deps with no Docker required: `pip install --platform manylinux2014_x86_64
+    --only-binary=:all:` downloads prebuilt Linux wheels directly from PyPI
+    (no compilation, so no Docker/Linux host needed) — confirmed working for
+    `pydantic` this session. Only suitable for dependencies that ship such
+    wheels; `common`'s psycopg[binary] does not have a pure story here, which
+    is why the bronze Lambda avoids `common` entirely (see its docstring)
+    rather than using this helper.
     """
     build_dir = _BUILD_ROOT / package_subdir
     if build_dir.exists():
@@ -43,7 +49,7 @@ def _build_dependency_bundled_lambda_code(
     shutil.copytree(
         _PIPELINE_SRC,
         build_dir / "pipeline",
-        ignore=shutil.ignore_patterns("__pycache__", "bronze", "gold"),
+        ignore=shutil.ignore_patterns("__pycache__"),
     )
 
     if requirements:
@@ -147,10 +153,17 @@ class ClaimsReviewPipelineStack(Stack):
             self,
             "GoldConfidenceRouteFunction",
             runtime=lambda_.Runtime.PYTHON_3_12,
-            handler="index.handler",
-            code=lambda_.Code.from_inline(_GOLD_CONFIDENCE_ROUTE_SOURCE),
-            timeout=Duration.seconds(15),
+            handler="pipeline.gold.confidence_route_handler.handler",
+            code=_build_dependency_bundled_lambda_code("gold-confidence-route", []),
+            timeout=Duration.seconds(30),
+            environment={
+                "AURORA_CLUSTER_ARN": database.cluster_arn,
+                "AURORA_SECRET_ARN": database.secret.secret_arn,
+                "AURORA_DATABASE_NAME": "claims_review",
+                "AUTO_VERDICT_THRESHOLD": "0.92",
+            },
         )
+        database.grant_data_api_access(confidence_route_function)
 
         failed_state = sfn.Fail(
             self,

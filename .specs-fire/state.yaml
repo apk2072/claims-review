@@ -74,11 +74,13 @@ intents:
         run_id: run-claims-review-006
         completed_at: 2026-07-08T22:00:35.875Z
       - id: gold-verdict-routing
-        status: pending
+        status: completed
         complexity: medium
         mode: confirm
         depends_on:
           - silver-classify-extract
+        run_id: run-claims-review-007
+        completed_at: 2026-07-08T22:48:01.461Z
       - id: reviewer-backend-api
         status: pending
         complexity: medium
@@ -180,3 +182,11 @@ runs:
           mode: confirm
       started: 2026-07-08T17:55:43.577Z
       completed: 2026-07-08T22:00:35.875Z
+    - id: run-claims-review-007
+      scope: single
+      work_items:
+        - id: gold-verdict-routing
+          intent: claims-review-platform
+          mode: confirm
+      started: 2026-07-08T22:07:15.989Z
+      completed: 2026-07-08T22:48:01.461Z
